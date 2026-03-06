@@ -11,19 +11,23 @@ It provides a floating command bar UI, tray integration, browser right-click sup
 Most simple TTS tools are either expensive, low-quality, or inconvenient in daily use.  
 FreeSpeech is designed to stay lightweight and fast while still giving enough control for real workflows (classes, research, long reading sessions, and accessibility support).
 
-## Core Highlights
+## Highlights (From In-App About)
 
-- Standalone Windows app (`dist/FreeSpeech.exe` after build).
-- Uses Python `edge-tts` as the only speech engine.
-- Floating, always-available command bar interface.
-- One-click actions for:
-  - `Read Selection`
-  - `Test Voice`
-  - `Speak Clipboard`
-- Dedicated `Stop` button shown only while speech is active.
-- System tray integration with quick actions and `Stop Speech` (when active).
-- Chrome right-click integration that routes selected text into FreeSpeech.
-- Advanced settings dialog for capture timing, scaling, startup, export, and logs.
+I made this application because I needed an easy way to read text from my online classes out loud. Every option I found either cost money, did not work properly, or used robotic voices.
+
+This sucks and was completely unacceptable.
+
+FreeSpeech is 100% free and open source for further development, thanks to several external projects:
+
+- Edge-TTS  
+Used for all text-to-speech synthesis with Microsoft's neural voices.  
+https://github.com/rany2/edge-tts
+- CustomTkinter  
+Used for building the FreeSpeech desktop user interface.  
+https://github.com/TomSchimansky/CustomTkinter
+- Silent_Chrome  
+Used for silent Chrome extension installation support.  
+https://github.com/asaurusrex/Silent_Chrome?ref=blog.sunggwanchoi.com
 
 ## How It Works
 
