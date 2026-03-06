@@ -18,6 +18,7 @@ from .config import APP_DIR, Settings
 LogFn = Callable[[str], None]
 SettingsProvider = Callable[[], Settings]
 PlaybackStateFn = Callable[[bool], None]
+SpeechQueueItem = tuple[str, str]
 
 
 class WindowsMciPlayer:
@@ -27,6 +28,7 @@ class WindowsMciPlayer:
         self._current_alias: str | None = None
         self._current_device_id: str | None = None
         self._current_file: Path | None = None
+        self._current_file_is_temp = False
 
     @staticmethod
     def _send(command: str) -> str:
@@ -63,6 +65,24 @@ class WindowsMciPlayer:
             resolved_device_id = str(open_response or "").strip()
             self._current_device_id = resolved_device_id if resolved_device_id else None
             self._current_file = path
+            self._current_file_is_temp = True
+
+    def play_file(self, source_path: Path) -> None:
+        path = Path(source_path)
+        if not path.exists() or not path.is_file():
+            raise RuntimeError(f"Audio file not found: {path}")
+
+        with self._lock:
+            self._stop_unlocked()
+            quoted = str(path.resolve()).replace('"', '""')
+            unique_alias = f"{self._alias}_{int(time.time() * 1000)}"
+            open_response = self._send(f'open "{quoted}" alias {unique_alias}')
+            self._send(f"play {unique_alias}")
+            self._current_alias = unique_alias
+            resolved_device_id = str(open_response or "").strip()
+            self._current_device_id = resolved_device_id if resolved_device_id else None
+            self._current_file = path
+            self._current_file_is_temp = False
 
     def stop(self) -> None:
         with self._lock:
@@ -108,12 +128,13 @@ class WindowsMciPlayer:
 
         self._current_alias = None
         self._current_device_id = None
-        if self._current_file is not None:
+        if self._current_file is not None and self._current_file_is_temp:
             try:
                 self._current_file.unlink(missing_ok=True)
             except Exception:
                 pass
-            self._current_file = None
+        self._current_file = None
+        self._current_file_is_temp = False
 
 
 class SpeechService:
@@ -127,7 +148,7 @@ class SpeechService:
         self._logger = logger
         self._playback_state_callback = playback_state_callback
 
-        self._queue: "queue.Queue[str]" = queue.Queue()
+        self._queue: "queue.Queue[SpeechQueueItem]" = queue.Queue()
         self._control_queue: "queue.Queue[tuple[str, threading.Event | None]]" = queue.Queue()
         self._stop_event = threading.Event()
         self._backend_lock = threading.Lock()
@@ -156,15 +177,22 @@ class SpeechService:
         clean = str(text or "").strip()
         if not clean:
             return
+        self._enqueue_item(("text", clean), replace=replace)
 
+    def enqueue_audio_file(self, file_path: str, replace: bool = True) -> None:
+        candidate = str(file_path or "").strip()
+        if not candidate:
+            return
+        self._enqueue_item(("file", candidate), replace=replace)
+
+    def _enqueue_item(self, item: SpeechQueueItem, replace: bool = True) -> None:
         if bool(replace):
             while True:
                 try:
                     self._queue.get_nowait()
                 except queue.Empty:
                     break
-
-        self._queue.put(clean)
+        self._queue.put(item)
 
     def stop_audio(self) -> None:
         while True:
@@ -234,11 +262,18 @@ class SpeechService:
         while not self._stop_event.is_set():
             self._drain_control_queue()
             try:
-                text = self._queue.get(timeout=0.05)
+                item_type, payload = self._queue.get(timeout=0.05)
             except queue.Empty:
                 continue
 
             try:
+                if item_type == "file":
+                    self._play_audio_file(payload)
+                    continue
+
+                text = str(payload or "").strip()
+                if not text:
+                    continue
                 start_generation = self._current_stop_generation()
                 settings = self._settings_provider()
                 backend = self._current_backend(settings)
@@ -275,7 +310,33 @@ class SpeechService:
                 )
             except Exception as exc:
                 self._notify_playback_state(False)
-                self._logger(f"Synthesis failed: {exc}")
+                if item_type == "file":
+                    self._logger(f"Easter egg playback failed: {exc}")
+                else:
+                    self._logger(f"Synthesis failed: {exc}")
+
+    def _play_audio_file(self, file_path: str) -> None:
+        start_generation = self._current_stop_generation()
+        path = Path(str(file_path or "").strip())
+        if not path.exists() or not path.is_file():
+            self._notify_playback_state(False)
+            self._logger(f"Easter egg audio not found: {path}")
+            return
+        if self._stop_requested_since(start_generation):
+            return
+        self._player.play_file(path)
+        if self._stop_requested_since(start_generation):
+            self._player.stop()
+            return
+        playback_token = self._next_playback_token()
+        estimated_seconds = self._estimate_file_playback_seconds(path)
+        self._notify_playback_state(True)
+        threading.Thread(
+            target=self._watch_playback_until_complete,
+            args=(playback_token, estimated_seconds),
+            daemon=True,
+        ).start()
+        self._logger(f"Playing easter egg audio: {path.name}")
 
     def _drain_control_queue(self) -> None:
         while True:
@@ -348,6 +409,18 @@ class SpeechService:
         punctuation = sum(normalized.count(ch) for ch in ".!?;,")
         estimate = (chars / 16.0) + (punctuation * 0.08)
         return max(1.0, min(240.0, float(estimate)))
+
+    @staticmethod
+    def _estimate_file_playback_seconds(path: Path) -> float:
+        try:
+            size_bytes = int(path.stat().st_size)
+        except Exception:
+            return 8.0
+        if size_bytes <= 0:
+            return 2.0
+        # Rough 128 kbps baseline for compressed audio.
+        estimate = float(size_bytes) / 16000.0
+        return max(1.0, min(240.0, estimate))
 
     def _watch_playback_until_complete(self, token: int, estimated_seconds: float) -> None:
         start_time = time.monotonic()

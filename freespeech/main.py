@@ -67,6 +67,11 @@ APP_ICON_ICO = "icon-512.ico"
 TRAY_ICON_ICO = "favicon.ico"
 THEME_JSON_NAME = "red.json"
 THEME_FOLDER_NAME = "themes"
+EASTER_EGG_QUOTE_CHARS = "\"'`“”‘’"
+EASTER_EGG_TRIGGERS: dict[str, tuple[str, ...]] = {
+    "eagles": ("easteregg.mp3",),
+    "runescape": ("easteregg2.mp3", "easteregg2.ogg"),
+}
 CHROME_EXTENSION_ICON_FILES: dict[str, str] = {
     "16": "icon-16.png",
     "32": "icon-32.png",
@@ -2419,9 +2424,58 @@ class ReaderApp:
         normalized = str(path or "").split("?", 1)[0].rstrip("/")
         return normalized or "/"
 
+    @staticmethod
+    def _normalize_easter_egg_key(text: str) -> str:
+        normalized = str(text or "").casefold()
+        if EASTER_EGG_QUOTE_CHARS:
+            quote_map = {ord(ch): None for ch in EASTER_EGG_QUOTE_CHARS}
+            normalized = normalized.translate(quote_map)
+        normalized = re.sub(r"\s+", " ", normalized)
+        return normalized.strip()
+
+    def _resolve_easter_egg_audio_path(self, key: str) -> Path | None:
+        for file_name in EASTER_EGG_TRIGGERS.get(str(key or "").strip(), ()):
+            candidate = Path(_resolve_asset_path(file_name))
+            if candidate.exists() and candidate.is_file():
+                return candidate
+        return None
+
+    def _try_enqueue_easter_egg(self, text: str) -> bool:
+        normalized = self._normalize_easter_egg_key(text)
+        if not normalized:
+            return False
+
+        tokenized = re.sub(r"[^a-z0-9]+", " ", normalized).strip()
+        if not tokenized:
+            return False
+
+        key = ""
+        for candidate in EASTER_EGG_TRIGGERS:
+            pattern = rf"(?<![a-z0-9]){re.escape(candidate)}(?![a-z0-9])"
+            if re.search(pattern, tokenized):
+                key = candidate
+                break
+        if not key:
+            return False
+
+        audio_path = self._resolve_easter_egg_audio_path(key)
+        if audio_path is None:
+            self.log(f"Easter egg audio missing for '{key}'.")
+            return False
+
+        try:
+            self.root.after(0, lambda: self._set_stop_button_visible(True))
+        except Exception:
+            pass
+        self.speech.enqueue_audio_file(str(audio_path))
+        self.log(f"Easter egg triggered: {key}")
+        return True
+
     def _enqueue_speech_text(self, text: str) -> None:
         clean = str(text or "").strip()
         if not clean:
+            return
+        if self._try_enqueue_easter_egg(clean):
             return
         try:
             self.root.after(0, lambda: self._set_stop_button_visible(True))

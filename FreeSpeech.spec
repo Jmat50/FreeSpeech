@@ -5,7 +5,7 @@ a = Analysis(
     ['freespeech\\main.py'],
     pathex=[],
     binaries=[],
-    datas=[('themes\\red.json', 'themes'), ('assets\\icon-512.png', 'assets'), ('assets\\icon-512-maskable.png', 'assets'), ('assets\\icon-512.ico', 'assets'), ('assets\\favicon.ico', 'assets')],
+    datas=[('themes\\red.json', 'themes'), ('assets\\icon-512.png', 'assets'), ('assets\\icon-512-maskable.png', 'assets'), ('assets\\icon-512.ico', 'assets'), ('assets\\favicon.ico', 'assets'), ('assets\\easteregg.mp3', 'assets'), ('assets\\easteregg2.mp3', 'assets'), ('assets\\easteregg2.ogg', 'assets')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

@@ -28,6 +28,9 @@ Write-Host "Building one-file Windows EXE..."
     --add-data "assets\icon-512-maskable.png;assets" `
     --add-data "assets\icon-512.ico;assets" `
     --add-data "assets\favicon.ico;assets" `
+    --add-data "assets\easteregg.mp3;assets" `
+    --add-data "assets\easteregg2.mp3;assets" `
+    --add-data "assets\easteregg2.ogg;assets" `
     freespeech\main.py
 
 Write-Host ""
