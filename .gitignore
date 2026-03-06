@@ -29,3 +29,12 @@ desktop.ini
 # FreeSpeech runtime data
 error_log.html
 error_log_index.json
+
+# Keep other local projects separate
+sitepreserver/
+docs/
+preserved_sites_test/
+
+# Site Preserver runtime output
+preserved_sites/
+.tmp_anydownload/
