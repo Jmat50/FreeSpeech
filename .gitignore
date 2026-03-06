@@ -10,11 +10,7 @@ env/
 ENV/
 
 # Build artifacts
-build/
-dist/
-*.toc
-*.pyz
-*.pkg
+# Intentionally tracked in this repository (user requested build + exe in GitHub).
 
 # Logs and local runtime files
 *.log
