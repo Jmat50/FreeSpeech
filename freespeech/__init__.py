@@ -1,4 +1,4 @@
-"""FreeSpeech."""
+"""FreeSpeech package entrypoint."""
 
 from .version import APP_VERSION
 
